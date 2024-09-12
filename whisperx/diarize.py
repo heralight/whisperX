@@ -3,9 +3,16 @@ import pandas as pd
 from pyannote.audio import Pipeline
 from typing import Optional, Union
 import torch
+from typing import Any
+from dataclasses import dataclass
 
 from .audio import load_audio, SAMPLE_RATE
 
+@dataclass
+class DiarizationResult:
+    df: pd.DataFrame
+    segments: np.ndarray
+    embeddings: Any
 
 class DiarizationPipeline:
     def __init__(
@@ -25,11 +32,18 @@ class DiarizationPipeline:
             'waveform': torch.from_numpy(audio[None, :]),
             'sample_rate': SAMPLE_RATE
         }
-        segments = self.model(audio_data, num_speakers = num_speakers, min_speakers=min_speakers, max_speakers=max_speakers)
+         # Run the pipeline and get diarization and embeddings
+        segments, embeddings = self.model(audio_data, num_speakers=num_speakers, min_speakers=min_speakers, max_speakers=max_speakers, return_embeddings=True)
+
+        #segments = self.model(audio_data, num_speakers = num_speakers, min_speakers=min_speakers, max_speakers=max_speakers)
         diarize_df = pd.DataFrame(segments.itertracks(yield_label=True), columns=['segment', 'label', 'speaker'])
         diarize_df['start'] = diarize_df['segment'].apply(lambda x: x.start)
         diarize_df['end'] = diarize_df['segment'].apply(lambda x: x.end)
-        return diarize_df
+        res = DiarizationResult(df=diarize_df, segments=segments, embeddings=embeddings)
+        # Create a mapping from speaker labels to embeddings
+        #speaker_to_embeddings = {segment['speaker']: embeddings[idx] for idx, segment in enumerate(segments.itertracks())}
+
+        return res
 
 
 def assign_word_speakers(diarize_df, transcript_result, fill_nearest=False):
