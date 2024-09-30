@@ -1,6 +1,6 @@
 import os
 import warnings
-from typing import List, Union, Optional, NamedTuple
+from typing import Any, List, Union, Optional, NamedTuple
 
 import ctranslate2
 import faster_whisper
@@ -171,7 +171,8 @@ class FasterWhisperPipeline(Pipeline):
         return final_iterator
 
     def transcribe(
-        self, audio: Union[str, np.ndarray], batch_size=None, num_workers=0, language=None, task=None, chunk_size=30, print_progress = False, combined_progress=False,suppress_numerals=None
+        self, audio: Union[str, np.ndarray], batch_size=None, num_workers=0, language=None, task=None, chunk_size=30, print_progress = False, combined_progress=False,suppress_numerals=None,
+        asr_options: Optional[dict[str, Any]] = None
     ) -> TranscriptionResult:
         if isinstance(audio, str):
             audio = load_audio(audio)
@@ -214,6 +215,13 @@ class FasterWhisperPipeline(Pipeline):
             new_suppressed_tokens = numeral_symbol_tokens + self.options.suppress_tokens
             new_suppressed_tokens = list(set(new_suppressed_tokens))
             self.options = self.options._replace(suppress_tokens=new_suppressed_tokens)
+            
+        # Update options dynamically based on asr_options
+        if asr_options is not None:
+            # Use _replace to dynamically update options from asr_options
+            for key, value in asr_options.items():
+                if hasattr(self.options, key):
+                    self.options = self.options._replace(**{key: value})
 
         segments: List[SingleSegment] = []
         batch_size = batch_size or self._batch_size
@@ -327,6 +335,9 @@ def load_model(whisper_arch,
         "clip_timestamps": None,
         "hallucination_silence_threshold": None,
         "hotwords": "",
+        "multilingual":False,
+        "output_language":None,
+        "log_prob_low_threshold":None,
     }
 
     if asr_options is not None:
